@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useLayoutEffect } from "react";
-import { searchArtist, getArtist, getTopTracks, getTopAlbums, getSimilar } from "../services/lastfm";
+import { searchArtist, getArtist, getTopTracks, getTopAlbums, getSimilar, getTopArtists } from "../services/lastfm";
 
 /* ==============================
    GLOBAL STYLES (inject once)
@@ -7,12 +7,12 @@ import { searchArtist, getArtist, getTopTracks, getTopAlbums, getSimilar } from 
 const GLOBAL_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,800;0,900;1,700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
 
-  html, body { margin: 0; background: #0A0A0A; color: #F2EFE9; }
+  html, body { margin: 0; background: #171717; color: #F2EFE9; }
   body { font-family: "Space Mono", monospace; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
   ::selection { background: #D4001A; color: #F2EFE9; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-track { background: #0A0A0A; }
-  ::-webkit-scrollbar-thumb { background: #2A2A2A; border: 2px solid #0A0A0A; }
+  ::-webkit-scrollbar-track { background: #171717; }
+  ::-webkit-scrollbar-thumb { background: #3a3a3a; border: 2px solid #171717; }
   ::-webkit-scrollbar-thumb:hover { background: #D4001A; }
   .tab-nums { font-variant-numeric: tabular-nums; }
 
@@ -36,7 +36,7 @@ const GLOBAL_CSS = `
   .blink { animation: blink 1s steps(1) infinite; }
 
   @keyframes shimmer { 100% { transform: translateX(100%); } }
-  .skel { position: relative; overflow: hidden; background: #1C1C1E; }
+  .skel { position: relative; overflow: hidden; background: #232325; }
   .skel::after {
     content:""; position:absolute; inset:0; transform: translateX(-100%);
     background: linear-gradient(90deg, transparent, rgba(242,239,233,0.07), transparent);
@@ -92,6 +92,24 @@ const GLOBAL_CSS = `
 
   .fade-up { opacity: 0; transform: translateY(14px); transition: opacity .7s ease, transform .7s ease; }
   .fade-up.in { opacity: 1; transform: none; }
+
+  @keyframes crt-scanline-out {
+    0%   { transform: scaleY(1);     filter: brightness(1);            opacity: 1; }
+    55%  { transform: scaleY(0.05);  filter: brightness(2.5);          opacity: 1; }
+    80%  { transform: scaleY(0.018); filter: brightness(6) blur(1px);  opacity: 1; }
+    100% { transform: scaleY(0);     filter: brightness(0);            opacity: 0; }
+  }
+  .crt-boot-out {
+    animation: crt-scanline-out 0.55s ease-in forwards;
+    transform-origin: 50% 50%;
+  }
+
+  @keyframes crt-wave {
+    0%,100% { text-shadow: 1px 0 rgba(212,0,26,0.12), -1px 0 rgba(0,200,255,0.08); transform: none; }
+    33%     { text-shadow: -2px 0 rgba(212,0,26,0.16), 2px 0 rgba(0,200,255,0.10); transform: skewX(0.3deg); }
+    66%     { text-shadow: 2px 0 rgba(212,0,26,0.10), -1px 0 rgba(0,200,255,0.07); transform: skewX(-0.2deg); }
+  }
+  .crt-title { animation: crt-wave 5s ease-in-out infinite; }
 
   @media (hover: none) { .cursor-dot { display: none; } }
 `;
@@ -151,16 +169,18 @@ function useInView() {
 /* ============================== BOOT SEQUENCE ============================== */
 function BootSequence({ onDone }) {
   const [n, setN] = useState(0);
+  const [flickering, setFlickering] = useState(false);
   useEffect(() => {
     if (n >= BOOT_LINES.length) {
-      const t = setTimeout(onDone, 420);
+      const t = setTimeout(() => { setFlickering(true); setTimeout(onDone, 750); }, 350);
       return () => clearTimeout(t);
     }
     const t = setTimeout(() => setN((x) => x + 1), n === 0 ? 120 : 175);
     return () => clearTimeout(t);
   }, [n, onDone]);
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "#0A0A0A", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 1.5rem" }}>
+    <div className={flickering ? "crt-boot-out" : ""}
+         style={{ position: "fixed", inset: 0, zIndex: 100, background: "#171717", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 1.5rem" }}>
       <div style={{ width: "100%", maxWidth: "42rem" }}>
         <pre style={{ fontFamily: '"Space Mono", monospace', fontSize: "clamp(12px,2vw,15px)", lineHeight: 1.8, color: "#8A8F88" }}>
           {BOOT_LINES.slice(0, n).map((l, i) => (
@@ -242,18 +262,18 @@ function SearchDropdown({ results, onSelect, visible }) {
   return (
     <div style={{
       position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
-      background: "#1C1C1E", border: "1px solid #2A2A2A", zIndex: 200,
+      background: "#232325", border: "1px solid #3a3a3a", zIndex: 200,
       maxHeight: 280, overflowY: "auto"
     }}>
       {results.map((r, i) => (
         <div key={i} onClick={() => onSelect(r.name)}
-          style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.6rem 0.75rem", cursor: "pointer", borderBottom: "1px solid #2A2A2A" }}
-          onMouseEnter={e => e.currentTarget.style.background = "#2A2A2A"}
+          style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.6rem 0.75rem", cursor: "pointer", borderBottom: "1px solid #3a3a3a" }}
+          onMouseEnter={e => e.currentTarget.style.background = "#3a3a3a"}
           onMouseLeave={e => e.currentTarget.style.background = "transparent"}
         >
           {r.image?.[1]?.["#text"]
             ? <img src={r.image[1]["#text"]} alt={r.name} style={{ width: 32, height: 32, objectFit: "cover", flexShrink: 0 }} />
-            : <div style={{ width: 32, height: 32, background: "#2A2A2A", flexShrink: 0 }} />
+            : <div style={{ width: 32, height: 32, background: "#3a3a3a", flexShrink: 0 }} />
           }
           <div>
             <div style={{ fontFamily: '"Space Mono", monospace', fontSize: 13, color: "#F2EFE9" }}>{r.name}</div>
@@ -330,8 +350,8 @@ function TerminalSearch({ onEgg, onSelectArtist }) {
     <div style={{ flex: 1, maxWidth: "28rem", margin: "0 auto", position: "relative" }}>
       <div style={{
         position: "relative", display: "flex", alignItems: "center", gap: "0.5rem",
-        padding: "0 0.75rem", height: "2.25rem", background: "#0A0A0A",
-        border: `1px solid ${focus ? "#D4001A" : "#2A2A2A"}`, transition: "border-color 0.15s"
+        padding: "0 0.75rem", height: "2.25rem", background: "#171717",
+        border: `1px solid ${focus ? "#D4001A" : "#3a3a3a"}`, transition: "border-color 0.15s"
       }}>
         <span style={{ color: "#D4001A", fontSize: "0.875rem", userSelect: "none" }}>&gt;</span>
         <div style={{ position: "relative", flex: 1 }}>
@@ -362,7 +382,7 @@ function TerminalSearch({ onEgg, onSelectArtist }) {
   );
 }
 
-function Header({ onEgg, onSelectArtist }) {
+function Header({ onEgg, onSelectArtist, onHome }) {
   const [solid, setSolid] = useState(false);
   useEffect(() => {
     const on = () => setSolid(window.scrollY > 40);
@@ -372,17 +392,17 @@ function Header({ onEgg, onSelectArtist }) {
   return (
     <header style={{
       position: "sticky", top: 0, zIndex: 40,
-      background: solid ? "rgba(10,10,10,0.85)" : "transparent",
+      background: solid ? "rgba(23,23,23,0.85)" : "transparent",
       backdropFilter: solid ? "blur(12px)" : "none",
-      borderBottom: solid ? "1px solid #2A2A2A" : "1px solid transparent",
+      borderBottom: solid ? "1px solid #3a3a3a" : "1px solid transparent",
       transition: "background 0.3s, border-color 0.3s"
     }}>
       <div style={{ maxWidth: "72rem", margin: "0 auto", padding: "0 1.25rem", height: "4rem", display: "flex", alignItems: "center", gap: "1rem" }}>
-        <a href="#top" style={{ display: "flex", alignItems: "baseline", gap: "2px", flexShrink: 0, textDecoration: "none" }}>
+        <button onClick={onHome} style={{ display: "flex", alignItems: "baseline", gap: "2px", flexShrink: 0, background: "none", border: "none", padding: 0, cursor: "pointer" }}>
           <span style={{ fontFamily: '"Space Mono", monospace', fontWeight: 700, color: "#F2EFE9", fontSize: "1.125rem", letterSpacing: "-0.02em" }}>waveform</span>
           <span style={{ fontFamily: '"Space Mono", monospace', color: "#D4001A", fontSize: "1.125rem" }}>.fm</span>
           <span className="blink" style={{ fontFamily: '"Space Mono", monospace', color: "#D4001A", fontSize: "1.125rem" }}>_</span>
-        </a>
+        </button>
         <TerminalSearch onEgg={onEgg} onSelectArtist={onSelectArtist} />
         <ListeningNow />
       </div>
@@ -396,7 +416,7 @@ function GenreBadge({ g }) {
     <span className="glow-badge" style={{
       display: "inline-flex", alignItems: "center",
       padding: "0.375rem 0.75rem",
-      background: "rgba(28,28,30,0.7)", backdropFilter: "blur(4px)",
+      background: "rgba(40,40,42,0.7)", backdropFilter: "blur(4px)",
       color: "#F5A623", fontSize: 11, textTransform: "uppercase",
       letterSpacing: "0.18em", fontFamily: '"Space Mono", monospace',
       borderRadius: "9999px"
@@ -415,9 +435,18 @@ function Hero({ artist, loaded, onListenerClick }) {
   const tags = artist?.tags?.tag?.slice(0, 4).map(t => t.name) ?? [];
   const scrobbles = artist?.stats?.playcount ?? 0;
 
+  const bioText = (() => {
+    const raw = artist?.bio?.summary?.split('<a')[0]?.trim() ?? "";
+    if (!raw) return null;
+    if (raw.length <= 480) return raw;
+    const cut = raw.slice(0, 480);
+    const lastEnd = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+    return lastEnd > 200 ? raw.slice(0, lastEnd + 1) : cut + "…";
+  })();
+
   return (
     <section id="top" style={{ position: "relative" }}>
-      <div style={{ position: "relative", height: "78vh", minHeight: 520, width: "100%", overflow: "hidden" }}>
+      <div style={{ position: "relative", height: "84vh", minHeight: 580, width: "100%", overflow: "hidden" }}>
         {/* hero image */}
         {heroImg
           ? <img src={heroImg} alt={artist?.name} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", opacity: 0.45 }} />
@@ -425,32 +454,38 @@ function Hero({ artist, loaded, onListenerClick }) {
         }
         <div style={{
           position: "absolute", inset: 0,
-          background: "radial-gradient(120% 90% at 70% 20%, rgba(212,0,26,0.18), transparent 55%), radial-gradient(90% 80% at 20% 80%, rgba(245,166,35,0.08), transparent 50%), linear-gradient(180deg, rgba(10,10,10,0.3), #0A0A0A)"
+          background: "radial-gradient(120% 90% at 70% 20%, rgba(212,0,26,0.18), transparent 55%), radial-gradient(90% 80% at 20% 80%, rgba(245,166,35,0.08), transparent 50%), linear-gradient(180deg, rgba(23,23,23,0.3), #171717)"
         }} />
         {!loaded && <div className="skel" style={{ position: "absolute", inset: 0 }} />}
-        <div style={{ position: "absolute", inset: "auto 0 0", height: "70%", background: "linear-gradient(180deg, transparent, #0A0A0A 92%)" }} />
+        <div style={{ position: "absolute", inset: "auto 0 0", height: "78%", background: "linear-gradient(180deg, transparent, #171717 88%)" }} />
 
-        <div style={{ position: "absolute", inset: "auto 0 0" }}>
-          <div style={{ maxWidth: "72rem", margin: "0 auto", padding: "0 1.25rem 2.5rem" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", fontSize: 11, fontFamily: '"Space Mono", monospace', color: "#8A8F88", textTransform: "uppercase", letterSpacing: "0.25em" }}>
+        {/* Title + description — centered in hero space */}
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "5rem 1.25rem 11rem", pointerEvents: "none" }}>
+          <div style={{ maxWidth: "56rem", width: "100%" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", marginBottom: "0.875rem", fontSize: 11, fontFamily: '"Space Mono", monospace', color: "#8A8F88", textTransform: "uppercase", letterSpacing: "0.25em" }}>
               <span style={{ width: 32, height: 1, background: "#D4001A", display: "inline-block" }} /> artist profile
             </div>
 
             {loaded ? (
-              <h1 style={{ fontFamily: '"Playfair Display", Georgia, serif', fontWeight: 900, color: "#F2EFE9", lineHeight: 0.9, letterSpacing: "-0.02em", fontSize: "clamp(3.5rem, 11vw, 9rem)", margin: 0 }}>
+              <h1 className="crt-title" style={{ fontFamily: '"Playfair Display", Georgia, serif', fontWeight: 900, color: "#F2EFE9", lineHeight: 0.9, letterSpacing: "-0.02em", fontSize: "clamp(2.8rem, 8vw, 7rem)", margin: 0 }}>
                 {artist?.name ?? "—"}
               </h1>
             ) : (
-              <div className="skel" style={{ height: "clamp(3.5rem,11vw,9rem)", width: "60%", borderRadius: 4 }} />
+              <div className="skel" style={{ height: "clamp(2.8rem,8vw,7rem)", width: "60%", borderRadius: 4, margin: "0 auto" }} />
             )}
 
-            {artist?.bio?.summary && (
-              <p style={{ marginTop: "0.75rem", fontFamily: '"Space Mono", monospace', color: "#8A8F88", fontSize: "0.8rem", maxWidth: "55ch", lineHeight: 1.6 }}
-                dangerouslySetInnerHTML={{ __html: artist.bio.summary.split('<a')[0].slice(0, 160) + "…" }}
+            {bioText && (
+              <p style={{ marginTop: "1.25rem", marginLeft: "auto", marginRight: "auto", fontFamily: '"Space Mono", monospace', color: "#C0BCB4", fontSize: "0.775rem", maxWidth: "58ch", lineHeight: 1.85 }}
+                dangerouslySetInnerHTML={{ __html: bioText }}
               />
             )}
+          </div>
+        </div>
 
-            <div style={{ marginTop: "1.75rem", display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: "2.5rem 2rem" }}>
+        {/* Stats + buttons — anchored to bottom */}
+        <div style={{ position: "absolute", inset: "auto 0 0" }}>
+          <div style={{ maxWidth: "72rem", margin: "0 auto", padding: "0 1.25rem 2.5rem" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: "2.5rem 2rem" }}>
               <button onClick={onListenerClick} style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0 }}>
                 <div className="tab-nums" style={{ fontFamily: '"Playfair Display", Georgia, serif', fontWeight: 700, color: "#F2EFE9", lineHeight: 1, fontSize: "clamp(2rem,5vw,3.5rem)" }}>
                   {loaded ? fmt(listeners) : <span style={{ color: "#8A8F88" }}>— — — — —<span className="blink" style={{ color: "#D4001A" }}>█</span></span>}
@@ -475,7 +510,7 @@ function Hero({ artist, loaded, onListenerClick }) {
                 <button style={{ padding: "0 1.5rem", height: 48, background: "#D4001A", color: "#F2EFE9", fontFamily: '"Space Mono", monospace', fontSize: "0.875rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                   <span>▶</span> play
                 </button>
-                <button style={{ padding: "0 1.5rem", height: 48, background: "transparent", color: "#F2EFE9", fontFamily: '"Space Mono", monospace', fontSize: "0.875rem", textTransform: "uppercase", letterSpacing: "0.1em", border: "1px solid #2A2A2A", cursor: "pointer" }}>
+                <button style={{ padding: "0 1.5rem", height: 48, background: "transparent", color: "#F2EFE9", fontFamily: '"Space Mono", monospace', fontSize: "0.875rem", textTransform: "uppercase", letterSpacing: "0.1em", border: "1px solid #3a3a3a", cursor: "pointer" }}>
                   + follow
                 </button>
               </div>
@@ -556,8 +591,8 @@ function TrackRow({ t, pos, onNo1Hover, onNo1Leave }) {
         display: "grid", gridTemplateColumns: "44px 1fr auto",
         alignItems: "center", gap: "1rem",
         padding: "0.875rem 1.25rem",
-        borderBottom: "1px solid rgba(42,42,42,0.6)",
-        background: isFirst && hover ? "rgba(212,0,26,0.06)" : hover ? "rgba(28,28,30,0.4)" : "transparent",
+        borderBottom: "1px solid rgba(62,62,62,0.6)",
+        background: isFirst && hover ? "rgba(212,0,26,0.06)" : hover ? "rgba(40,40,42,0.4)" : "transparent",
         transition: "background 0.15s", cursor: "default"
       }}
     >
@@ -572,7 +607,7 @@ function TrackRow({ t, pos, onNo1Hover, onNo1Leave }) {
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: '"Space Mono", monospace', fontSize: 15, color: "#F2EFE9" }}>{t.name}</span>
           {isFirst && <span style={{ flexShrink: 0, color: "#F5A623", fontSize: "0.75rem" }}>★</span>}
         </div>
-        <div style={{ marginTop: 8, height: 2, background: "rgba(42,42,42,0.7)", overflow: "hidden", opacity: hover ? 1 : 0, maxWidth: hover ? "100%" : 0, transition: "opacity 0.3s, max-width 0.3s" }}>
+        <div style={{ marginTop: 8, height: 2, background: "rgba(62,62,62,0.7)", overflow: "hidden", opacity: hover ? 1 : 0, maxWidth: hover ? "100%" : 0, transition: "opacity 0.3s, max-width 0.3s" }}>
           <div style={{ height: "100%", background: "#D4001A", width: (20 + (pos * 9) % 60) + "%" }} />
         </div>
       </div>
@@ -603,7 +638,7 @@ function TopTracks({ tracks }) {
       <SectionTitle k="// most played" right={
         <span style={{ fontFamily: '"Space Mono", monospace', fontSize: "0.75rem", color: "#8A8F88" }}>top {tracks.length} tracks</span>
       }>Top Tracks</SectionTitle>
-      <div style={{ border: "1px solid #2A2A2A", background: "rgba(28,28,30,0.3)" }}>
+      <div style={{ border: "1px solid #3a3a3a", background: "rgba(40,40,42,0.3)" }}>
         {tracks.map((t, i) => <TrackRow key={t.name} t={t} pos={i + 1} onNo1Hover={onNo1Hover} onNo1Leave={onNo1Leave} />)}
       </div>
       {confetti && (
@@ -619,7 +654,7 @@ function TopTracks({ tracks }) {
 }
 
 /* ============================== ALBUMS (3D tilt) ============================== */
-function AlbumCard({ a, index }) {
+function AlbumCard({ a, index, artistName }) {
   const ref = useRef(null);
   const [hov, setHov] = useState(false);
   const hues = [8, 38, 320, 200, 160];
@@ -638,13 +673,13 @@ function AlbumCard({ a, index }) {
   const onLeave = () => { ref.current.style.transform = "perspective(800px) rotateY(0) rotateX(0) translateY(0)"; };
 
   return (
-    <div style={{ perspective: "800px" }} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}>
+    <div style={{ perspective: "800px", cursor: "pointer" }} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} onClick={() => window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent((artistName ?? "") + " " + a.name)}`, "_blank", "noopener")}>
       <div ref={ref} onMouseMove={onMove} onMouseLeave={onLeave}
            style={{ position: "relative", aspectRatio: "1", transition: "transform 0.2s ease-out, box-shadow 0.2s", willChange: "transform", boxShadow: hov ? "0 30px 60px -15px rgba(0,0,0,0.8)" : "none", transformStyle: "preserve-3d" }}>
-        <div style={{ position: "absolute", inset: 0, overflow: "hidden", border: "1px solid #2A2A2A" }}>
+        <div style={{ position: "absolute", inset: 0, overflow: "hidden", border: "1px solid #3a3a3a" }}>
           {coverImg
             ? <img src={coverImg} alt={a.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-            : <div style={{ width: "100%", height: "100%", background: `radial-gradient(120% 120% at 30% 20%, oklch(0.32 0.13 ${hue}), #0A0A0A 70%)` }}>
+            : <div style={{ width: "100%", height: "100%", background: `radial-gradient(120% 120% at 30% 20%, oklch(0.32 0.13 ${hue}), #171717 70%)` }}>
                 <div style={{ position: "absolute", inset: 0, opacity: 0.25, backgroundImage: "repeating-linear-gradient(0deg, rgba(0,0,0,0.4) 0 2px, transparent 2px 4px)" }} />
                 <div style={{ position: "absolute", inset: 0, padding: 16, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                   <span style={{ fontFamily: '"Space Mono", monospace', fontSize: 10, color: "rgba(242,239,233,0.5)", letterSpacing: "0.1em" }}>LP</span>
@@ -653,8 +688,9 @@ function AlbumCard({ a, index }) {
               </div>
           }
         </div>
-        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(10,10,10,0.7)", opacity: hov ? 1 : 0, transition: "opacity 0.2s" }}>
-          <span style={{ fontFamily: '"Playfair Display", serif', fontWeight: 900, color: "#F5A623", fontSize: "2rem", textAlign: "center", padding: "0 8px" }}>{a.name}</span>
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.5rem", background: "rgba(23,23,23,0.7)", opacity: hov ? 1 : 0, transition: "opacity 0.2s" }}>
+          <span style={{ fontFamily: '"Playfair Display", serif', fontWeight: 900, color: "#F5A623", fontSize: "1.75rem", textAlign: "center", padding: "0 8px" }}>{a.name}</span>
+          <span style={{ fontFamily: '"Space Mono", monospace', fontSize: 10, color: "rgba(242,239,233,0.65)", letterSpacing: "0.12em", textTransform: "uppercase" }}>▶ open on youtube</span>
         </div>
       </div>
       <div style={{ marginTop: "0.75rem", fontFamily: '"Space Mono", monospace', fontSize: 13, color: "#F2EFE9", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</div>
@@ -663,13 +699,13 @@ function AlbumCard({ a, index }) {
   );
 }
 
-function Albums({ albums }) {
+function Albums({ albums, artistName }) {
   if (!albums.length) return null;
   return (
     <section style={{ maxWidth: "72rem", margin: "0 auto", padding: "4rem 1.25rem" }}>
       <SectionTitle k="// discography">Albums</SectionTitle>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "1.25rem" }}>
-        {albums.map((a, i) => <AlbumCard key={a.name} a={a} index={i} />)}
+        {albums.map((a, i) => <AlbumCard key={a.name} a={a} index={i} artistName={artistName} />)}
       </div>
     </section>
   );
@@ -678,14 +714,22 @@ function Albums({ albums }) {
 /* ============================== SIMILAR ARTISTS ============================== */
 function VinylCard({ s, onSelect }) {
   const [hov, setHov] = useState(false);
+  const artistImg = (() => {
+    const img = s.image?.find(i => i.size === "large")?.["#text"]
+      || s.image?.find(i => i.size === "medium")?.["#text"];
+    return img && !img.includes("2a96cbd8b46e442fc41c2b86b821562f") ? img : null;
+  })();
   return (
     <div style={{ flexShrink: 0, width: 192, scrollSnapAlign: "start", cursor: "pointer" }}
          onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
          onClick={() => onSelect(s.name)}>
       <div style={{ position: "relative", width: 192, height: 192 }}>
         <div className={`vinyl${hov ? " vinyl-spin" : ""}`} style={{ width: 192, height: 192, boxShadow: "0 14px 40px -12px rgba(0,0,0,0.8)" }}>
-          <div style={{ position: "absolute", inset: 0, margin: "auto", width: "34%", height: "34%", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "radial-gradient(circle, #D4001A, #8a0011)" }}>
-            <div style={{ width: "18%", height: "18%", borderRadius: "50%", background: "#0A0A0A" }} />
+          <div style={{ position: "absolute", inset: 0, margin: "auto", width: "34%", height: "34%", borderRadius: "50%", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", background: artistImg ? "transparent" : "radial-gradient(circle, #D4001A, #8a0011)" }}>
+            {artistImg
+              ? <img src={artistImg} alt={s.name} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} />
+              : <div style={{ width: "18%", height: "18%", borderRadius: "50%", background: "#171717" }} />
+            }
           </div>
         </div>
         <div style={{ position: "absolute", inset: 0, borderRadius: "50%", pointerEvents: "none", background: "linear-gradient(120deg, rgba(255,255,255,0.10) 0%, transparent 40%)" }} />
@@ -710,7 +754,7 @@ function SimilarArtists({ similar, onSelect }) {
       <SectionTitle k="// listeners also play" right={
         <div style={{ display: "flex", gap: "0.5rem" }}>
           {["←","→"].map((arrow, i) => (
-            <button key={arrow} onClick={() => nudge(i === 0 ? -420 : 420)} style={{ width: 40, height: 40, border: "1px solid #2A2A2A", background: "transparent", color: "#8A8F88", cursor: "pointer", fontFamily: '"Space Mono", monospace', fontSize: "1rem" }}>{arrow}</button>
+            <button key={arrow} onClick={() => nudge(i === 0 ? -420 : 420)} style={{ width: 40, height: 40, border: "1px solid #3a3a3a", background: "transparent", color: "#8A8F88", cursor: "pointer", fontFamily: '"Space Mono", monospace', fontSize: "1rem" }}>{arrow}</button>
           ))}
         </div>
       }>Similar Artists</SectionTitle>
@@ -736,18 +780,18 @@ function WinampPlayer({ onClose, artistName }) {
   }, [xy]);
   return (
     <div style={{ position: "fixed", zIndex: 80, width: 320, userSelect: "none", fontFamily: '"Space Mono", monospace', left: xy.x, top: xy.y }}>
-      <div style={{ border: "1px solid #2A2A2A", background: "#1C1C1E", boxShadow: "0 20px 60px -10px rgba(0,0,0,0.9)" }}>
-        <div onMouseDown={onDown} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 0.5rem", height: 28, background: "#0A0A0A", borderBottom: "1px solid #2A2A2A", cursor: "move" }}>
+      <div style={{ border: "1px solid #3a3a3a", background: "#232325", boxShadow: "0 20px 60px -10px rgba(0,0,0,0.9)" }}>
+        <div onMouseDown={onDown} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 0.5rem", height: 28, background: "#171717", borderBottom: "1px solid #3a3a3a", cursor: "move" }}>
           <span style={{ fontSize: 10, letterSpacing: "0.1em", color: "#D4001A" }}>◆ WAVEAMP 2.6</span>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#8A8F88", fontSize: "0.75rem", cursor: "pointer", padding: "0 4px" }}>✕</button>
         </div>
         <div style={{ padding: "0.75rem" }}>
-          <div style={{ background: "#0A0A0A", border: "1px solid #2A2A2A", padding: "6px 8px", overflow: "hidden" }}>
+          <div style={{ background: "#171717", border: "1px solid #3a3a3a", padding: "6px 8px", overflow: "hidden" }}>
             <div style={{ fontSize: 11, color: "#F5A623" }}>
               <span className="marquee">{artistName ?? "waveform.fm"}   ★   waveform.fm   ★   {artistName ?? "waveform.fm"}   ★   waveform.fm   ★   </span>
             </div>
           </div>
-          <div style={{ marginTop: "0.5rem", display: "flex", alignItems: "flex-end", gap: 2, height: 40, background: "#0A0A0A", border: "1px solid #2A2A2A", padding: "4px 8px" }}>
+          <div style={{ marginTop: "0.5rem", display: "flex", alignItems: "flex-end", gap: 2, height: 40, background: "#171717", border: "1px solid #3a3a3a", padding: "4px 8px" }}>
             {Array.from({ length: 22 }).map((_, i) => (
               <span key={i} style={{
                 flex: 1, background: i % 3 === 0 ? "#F5A623" : "#D4001A",
@@ -757,11 +801,11 @@ function WinampPlayer({ onClose, artistName }) {
             ))}
           </div>
           <div style={{ marginTop: "0.5rem", display: "flex", alignItems: "center", gap: 6 }}>
-            <button style={{ flex: 1, height: 28, background: "#0A0A0A", border: "1px solid #2A2A2A", color: "#F2EFE9", fontSize: "0.75rem", cursor: "pointer" }}>⏮</button>
-            <button onClick={() => setPlaying((p) => !p)} style={{ flex: 2, height: 28, background: "#D4001A", border: "1px solid #D4001A", color: "#0A0A0A", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>
+            <button style={{ flex: 1, height: 28, background: "#171717", border: "1px solid #3a3a3a", color: "#F2EFE9", fontSize: "0.75rem", cursor: "pointer" }}>⏮</button>
+            <button onClick={() => setPlaying((p) => !p)} style={{ flex: 2, height: 28, background: "#D4001A", border: "1px solid #D4001A", color: "#171717", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>
               {playing ? "❚❚ PAUSE" : "▶ PLAY"}
             </button>
-            <button style={{ flex: 1, height: 28, background: "#0A0A0A", border: "1px solid #2A2A2A", color: "#F2EFE9", fontSize: "0.75rem", cursor: "pointer" }}>⏭</button>
+            <button style={{ flex: 1, height: 28, background: "#171717", border: "1px solid #3a3a3a", color: "#F2EFE9", fontSize: "0.75rem", cursor: "pointer" }}>⏭</button>
           </div>
         </div>
       </div>
@@ -772,7 +816,7 @@ function WinampPlayer({ onClose, artistName }) {
 /* ============================== FOOTER ============================== */
 function Footer() {
   return (
-    <footer style={{ maxWidth: "72rem", margin: "0 auto", padding: "4rem 1.25rem", borderTop: "1px solid #2A2A2A", marginTop: "2rem" }}>
+    <footer style={{ maxWidth: "72rem", margin: "0 auto", padding: "4rem 1.25rem", borderTop: "1px solid #3a3a3a", marginTop: "2rem" }}>
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: "1.5rem", fontFamily: '"Space Mono", monospace', fontSize: 12, color: "#8A8F88" }}>
         <div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: "0.75rem" }}>
@@ -830,7 +874,7 @@ export default function ArtistPage() {
   const [currentArtist, setCurrentArtist] = useState("Radiohead");
 
   // load artist data
-  const loadArtist = async (name) => {
+  const loadArtist = async (name, withFlash = false) => {
     setLoaded(false);
     setArtist(null); setTracks([]); setAlbums([]); setSimilar([]);
     try {
@@ -845,17 +889,25 @@ export default function ArtistPage() {
       setAlbums(al);
       setSimilar(s);
       setLoaded(true);
-      setFlash(true);
-      setTimeout(() => setFlash(false), 600);
+      if (withFlash) { setFlash(true); setTimeout(() => setFlash(false), 600); }
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       console.error(err);
     }
   };
 
-  const onBootDone = () => {
+  const onBootDone = async () => {
     setBooting(false);
-    loadArtist(currentArtist);
+    try {
+      const artists = await getTopArtists();
+      const pick = artists.length > 0
+        ? artists[Math.floor(Math.random() * Math.min(10, artists.length))].name
+        : "The Beatles";
+      setCurrentArtist(pick);
+      loadArtist(pick, true);
+    } catch (_) {
+      loadArtist("The Beatles", true);
+    }
   };
 
   const onSelectArtist = (name) => {
@@ -913,26 +965,26 @@ export default function ArtistPage() {
   }, [loaded]);
 
   return (
-    <div style={{ background: "#0A0A0A", minHeight: "100vh" }} className={disco ? "disco-on" : ""}>
+    <div style={{ background: "#171717", minHeight: "100vh" }} className={disco ? "disco-on" : ""}>
       <Particles discoRef={discoRef} />
       <CursorDot />
       {booting && <BootSequence onDone={onBootDone} />}
       {flash && <div className="reveal-flash" />}
       {disco && <div className="disco-flash" />}
 
-      <Header onEgg={onEgg} onSelectArtist={onSelectArtist} />
+      <Header onEgg={onEgg} onSelectArtist={onSelectArtist} onHome={() => window.scrollTo({ top: 0, behavior: "smooth" })} />
       <Hero artist={artist} loaded={loaded} onListenerClick={onListenerClick} />
 
       <div className="fade-up"><TopTracks tracks={tracks} /></div>
-      <div className="fade-up"><Albums albums={albums} /></div>
+      <div className="fade-up"><Albums albums={albums} artistName={artist?.name} /></div>
       <div className="fade-up"><SimilarArtists similar={similar} onSelect={onSelectArtist} /></div>
       <Footer />
 
       {winamp && <WinampPlayer onClose={() => setWinamp(false)} artistName={artist?.name} />}
 
       {lastfmEgg && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 90, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(10,10,10,0.7)", backdropFilter: "blur(4px)", pointerEvents: "none" }}>
-          <div style={{ textAlign: "center", padding: "2.5rem 2rem", border: "1px solid #D4001A", background: "rgba(28,28,30,0.9)" }}>
+        <div style={{ position: "fixed", inset: 0, zIndex: 90, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(23,23,23,0.7)", backdropFilter: "blur(4px)", pointerEvents: "none" }}>
+          <div style={{ textAlign: "center", padding: "2.5rem 2rem", border: "1px solid #D4001A", background: "rgba(40,40,42,0.9)" }}>
             <div style={{ fontFamily: '"Space Mono", monospace', fontSize: "3rem", fontWeight: 700, color: "#D4001A", letterSpacing: "-0.02em" }}>
               last<span style={{ color: "#F5A623" }}>.</span>fm
             </div>
@@ -944,7 +996,7 @@ export default function ArtistPage() {
 
       <div style={{
         position: "fixed", bottom: 20, right: 20, zIndex: 85, maxWidth: 260,
-        border: "1px solid #2A2A2A", background: "rgba(28,28,30,0.95)",
+        border: "1px solid #3a3a3a", background: "rgba(40,40,42,0.95)",
         padding: "0.75rem 1rem", fontFamily: '"Space Mono", monospace', fontSize: 12, color: "#F2EFE9",
         transition: "opacity 0.5s, transform 0.5s",
         opacity: endMsg ? 1 : 0, transform: endMsg ? "translateY(0)" : "translateY(12px)",

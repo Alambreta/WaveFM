@@ -43,3 +43,9 @@ export async function getSimilar(name) {
   const data = await get("artist.getsimilar", { artist: name, limit: 6 });
   return data.similarartists?.artist ?? [];
 }
+
+// Top artistas globales de la semana
+export async function getTopArtists() {
+  const data = await get("chart.gettopartists", { limit: 20 });
+  return data.artists?.artist ?? [];
+}
