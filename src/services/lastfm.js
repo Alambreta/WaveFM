@@ -49,3 +49,40 @@ export async function getTopArtists() {
   const data = await get("chart.gettopartists", { limit: 20 });
   return data.artists?.artist ?? [];
 }
+
+// Info de un track individual (incluye duration en ms)
+export async function getTrackInfo(artist, track) {
+  const data = await get("track.getInfo", { artist, track });
+  return data.track ?? null;
+}
+
+// Top tags/géneros globales
+export async function getTopTags(limit = 150) {
+  const data = await get("chart.gettoptags", { limit });
+  return data.tags?.tag ?? [];
+}
+
+// Top artistas para un tag/género
+export async function getTagTopArtists(tag, limit = 50) {
+  const data = await get("tag.gettopartists", { tag, limit });
+  return data.topartists?.artist ?? [];
+}
+
+// Top álbumes globales (chart)
+export async function getChartTopAlbums(limit = 20) {
+  const data = await get("chart.gettopalbums", { limit });
+  return data.albums?.album ?? [];
+}
+
+// Artist image from TheAudioDB (Last.fm removed images from their API in 2019)
+export async function getArtistImage(name) {
+  try {
+    const url = `https://www.theaudiodb.com/api/v1/json/2/search.php?s=${encodeURIComponent(name)}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.artists?.[0]?.strArtistThumb ?? null;
+  } catch {
+    return null;
+  }
+}

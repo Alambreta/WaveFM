@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useLayoutEffect } from "react";
-import { searchArtist, getArtist, getTopTracks, getTopAlbums, getSimilar, getTopArtists } from "../services/lastfm";
+import { useNavigate, useLocation } from "react-router-dom";
+import { searchArtist, getArtist, getTopTracks, getTopAlbums, getSimilar, getTopArtists, getTrackInfo } from "../services/lastfm";
+
 
 /* ==============================
    GLOBAL STYLES (inject once)
@@ -114,16 +116,6 @@ const GLOBAL_CSS = `
   @media (hover: none) { .cursor-dot { display: none; } }
 `;
 
-const BOOT_LINES = [
-  "> waveform.fm terminal v2.6.0",
-  "> initializing audioscrobbler core ............ ok",
-  "> mounting /dev/wax ......................... ok",
-  "> decoding waveform cache ................... ok",
-  "> establishing uplink to the ether ......... ok",
-  "> loading artist data from last.fm api ...",
-  "> welcome back, listener_",
-];
-
 const fmt = (n) => Number(n).toLocaleString("en-US");
 
 /* ============================== HOOKS ============================== */
@@ -166,36 +158,6 @@ function useInView() {
   return [ref, seen];
 }
 
-/* ============================== BOOT SEQUENCE ============================== */
-function BootSequence({ onDone }) {
-  const [n, setN] = useState(0);
-  const [flickering, setFlickering] = useState(false);
-  useEffect(() => {
-    if (n >= BOOT_LINES.length) {
-      const t = setTimeout(() => { setFlickering(true); setTimeout(onDone, 750); }, 350);
-      return () => clearTimeout(t);
-    }
-    const t = setTimeout(() => setN((x) => x + 1), n === 0 ? 120 : 175);
-    return () => clearTimeout(t);
-  }, [n, onDone]);
-  return (
-    <div className={flickering ? "crt-boot-out" : ""}
-         style={{ position: "fixed", inset: 0, zIndex: 100, background: "#171717", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 1.5rem" }}>
-      <div style={{ width: "100%", maxWidth: "42rem" }}>
-        <pre style={{ fontFamily: '"Space Mono", monospace', fontSize: "clamp(12px,2vw,15px)", lineHeight: 1.8, color: "#8A8F88" }}>
-          {BOOT_LINES.slice(0, n).map((l, i) => (
-            <div key={i} style={{ color: i === BOOT_LINES.length - 1 ? "#F5A623" : (i >= 1 && i <= 4 ? "#8A8F88" : "#F2EFE9") }}>
-              {l.includes("ok")
-                ? <span>{l.replace(" ok", " ")}<span style={{ color: "#D4001A" }}>ok</span></span>
-                : l}
-              {i === n - 1 && <span className="blink" style={{ color: "#D4001A" }}>█</span>}
-            </div>
-          ))}
-        </pre>
-      </div>
-    </div>
-  );
-}
 
 /* ============================== PARTICLES ============================== */
 function Particles({ discoRef }) {
@@ -411,20 +373,24 @@ function Header({ onEgg, onSelectArtist, onHome }) {
 }
 
 /* ============================== HERO ============================== */
-function GenreBadge({ g }) {
+function GenreBadge({ g, onClick }) {
   return (
-    <span className="glow-badge" style={{
-      display: "inline-flex", alignItems: "center",
-      padding: "0.375rem 0.75rem",
-      background: "rgba(40,40,42,0.7)", backdropFilter: "blur(4px)",
-      color: "#F5A623", fontSize: 11, textTransform: "uppercase",
-      letterSpacing: "0.18em", fontFamily: '"Space Mono", monospace',
-      borderRadius: "9999px"
-    }}>{g}</span>
+    <span
+      className="glow-badge"
+      onClick={onClick}
+      style={{
+        display: "inline-flex", alignItems: "center",
+        padding: "0.375rem 0.75rem",
+        background: "rgba(40,40,42,0.7)", backdropFilter: "blur(4px)",
+        color: "#F5A623", fontSize: 11, textTransform: "uppercase",
+        letterSpacing: "0.18em", fontFamily: '"Space Mono", monospace',
+        borderRadius: "9999px",
+        cursor: onClick ? "pointer" : "default"
+      }}>{g}</span>
   );
 }
 
-function Hero({ artist, loaded, onListenerClick }) {
+function Hero({ artist, loaded, onListenerClick, onGenreClick }) {
   const listeners = useCountUp(Number(artist?.stats?.listeners ?? 0), loaded, 1400);
 
   // pick the largest image last.fm returns
@@ -502,7 +468,7 @@ function Hero({ artist, loaded, onListenerClick }) {
 
               {tags.length > 0 && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "0.625rem" }}>
-                  {tags.map((g) => <GenreBadge key={g} g={g} />)}
+                  {tags.map((g) => <GenreBadge key={g} g={g} onClick={() => onGenreClick?.(g)} />)}
                 </div>
               )}
 
@@ -843,6 +809,8 @@ function Footer() {
 
 /* ============================== APP ============================== */
 export default function ArtistPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
   useEffect(() => {
     const id = "waveform-global-css";
     if (!document.getElementById(id)) {
@@ -855,9 +823,7 @@ export default function ArtistPage() {
     return () => document.body.classList.remove("grain", "scanlines");
   }, []);
 
-  const [booting, setBooting] = useState(true);
   const [loaded, setLoaded] = useState(false);
-  const [flash, setFlash] = useState(false);
   const [disco, setDisco] = useState(false);
   const discoRef = useRef(false);
   const [winamp, setWinamp] = useState(false);
@@ -871,10 +837,10 @@ export default function ArtistPage() {
   const [tracks, setTracks] = useState([]);
   const [albums, setAlbums] = useState([]);
   const [similar, setSimilar] = useState([]);
-  const [currentArtist, setCurrentArtist] = useState("Radiohead");
+  const [currentArtist, setCurrentArtist] = useState("");
 
   // load artist data
-  const loadArtist = async (name, withFlash = false) => {
+  const loadArtist = async (name) => {
     setLoaded(false);
     setArtist(null); setTracks([]); setAlbums([]); setSimilar([]);
     try {
@@ -885,35 +851,53 @@ export default function ArtistPage() {
         getSimilar(name),
       ]);
       setArtist(a);
-      setTracks(t);
       setAlbums(al);
       setSimilar(s);
+      // Enrich tracks with durations via track.getInfo (artist.gettoptracks often returns 0)
+      const enriched = await Promise.all(
+        t.map(async (track) => {
+          if (Number(track.duration) > 0) return track;
+          try {
+            const info = await getTrackInfo(name, track.name);
+            const sec = Math.round(Number(info?.duration ?? 0) / 1000);
+            return { ...track, duration: sec };
+          } catch { return track; }
+        })
+      );
+      setTracks(enriched);
       setLoaded(true);
-      if (withFlash) { setFlash(true); setTimeout(() => setFlash(false), 600); }
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       console.error(err);
     }
   };
 
-  const onBootDone = async () => {
-    setBooting(false);
-    try {
-      const artists = await getTopArtists();
-      const pick = artists.length > 0
-        ? artists[Math.floor(Math.random() * Math.min(10, artists.length))].name
-        : "The Beatles";
-      setCurrentArtist(pick);
-      loadArtist(pick, true);
-    } catch (_) {
-      loadArtist("The Beatles", true);
+  // Load artist on mount — from navigation state or fallback to a random top artist
+  useEffect(() => {
+    const name = location.state?.artist;
+    if (name) {
+      setCurrentArtist(name);
+      loadArtist(name);
+    } else {
+      getTopArtists()
+        .then(artists => {
+          const pick = artists.length > 0
+            ? artists[Math.floor(Math.random() * Math.min(10, artists.length))].name
+            : "The Beatles";
+          setCurrentArtist(pick);
+          loadArtist(pick);
+        })
+        .catch(() => { setCurrentArtist("The Beatles"); loadArtist("The Beatles"); });
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onSelectArtist = (name) => {
     setCurrentArtist(name);
     loadArtist(name);
   };
+
+  const onGenreClick = (tag) => navigate(`/genre/${encodeURIComponent(tag)}`);
 
   const triggerDisco = () => {
     setDisco(true); discoRef.current = true;
@@ -968,12 +952,10 @@ export default function ArtistPage() {
     <div style={{ background: "#171717", minHeight: "100vh" }} className={disco ? "disco-on" : ""}>
       <Particles discoRef={discoRef} />
       <CursorDot />
-      {booting && <BootSequence onDone={onBootDone} />}
-      {flash && <div className="reveal-flash" />}
       {disco && <div className="disco-flash" />}
 
-      <Header onEgg={onEgg} onSelectArtist={onSelectArtist} onHome={() => window.scrollTo({ top: 0, behavior: "smooth" })} />
-      <Hero artist={artist} loaded={loaded} onListenerClick={onListenerClick} />
+      <Header onEgg={onEgg} onSelectArtist={onSelectArtist} onHome={() => navigate("/home")} />
+      <Hero artist={artist} loaded={loaded} onListenerClick={onListenerClick} onGenreClick={onGenreClick} />
 
       <div className="fade-up"><TopTracks tracks={tracks} /></div>
       <div className="fade-up"><Albums albums={albums} artistName={artist?.name} /></div>
